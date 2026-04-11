@@ -47,5 +47,6 @@ class PlanCreateDefaultModelCD(CallbackData, prefix="adm_pcdm"):
     pass
 
 
-class PlanCreateNoLimitCD(CallbackData, prefix="adm_pcnl"):
+class PlanEditNoLimitCD(CallbackData, prefix="adm_penl"):
+    plan_id: int
     field: str  # "max_day" | "max_period"

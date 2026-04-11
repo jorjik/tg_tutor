@@ -13,10 +13,10 @@ from app.bot.handlers.admin.callbacks import (
     BackCD,
     PlanCreateCD,
     PlanCreateDefaultModelCD,
-    PlanCreateNoLimitCD,
     PlanDeleteCD,
     PlanDetailCD,
     PlanEditFieldCD,
+    PlanEditNoLimitCD,
     PlanListCD,
     PlanToggleActiveCD,
 )
@@ -24,9 +24,9 @@ from app.bot.handlers.admin.keyboards import (
     FIELD_LABELS,
     kb_plan_create_cancel,
     kb_plan_create_model,
-    kb_plan_create_no_limit,
     kb_plan_detail,
     kb_plan_edit_cancel,
+    kb_plan_edit_no_limit,
     kb_plan_list,
 )
 from app.bot.handlers.admin.states import PlanCreateFSM, PlanEditFSM
@@ -159,14 +159,18 @@ async def cq_plan_edit_field(
 
     hint = ""
     if field in ("max_day", "max_period"):
-        hint = "\nВведите число или <code>-</code> чтобы убрать ограничение."
+        hint = "\nВведите число или нажмите кнопку чтобы убрать ограничение."
+        reply_markup = kb_plan_edit_no_limit(callback_data.plan_id, field)
     elif field == "stars_price":
         hint = "\nВведите число Stars > 0 или <code>-</code> чтобы отключить."
+        reply_markup = kb_plan_edit_cancel(callback_data.plan_id)
+    else:
+        reply_markup = kb_plan_edit_cancel(callback_data.plan_id)
 
     try:
         await query.message.edit_text(
             f"Введите новое значение для <b>{label}</b>.{hint}",
-            reply_markup=kb_plan_edit_cancel(callback_data.plan_id),
+            reply_markup=reply_markup,
         )
     except TelegramBadRequest:
         pass
@@ -192,6 +196,24 @@ async def fsm_plan_edit_value(message: Message, state: FSMContext) -> None:
 
     await state.clear()
     await message.answer(_plan_text(plan), reply_markup=kb_plan_detail(plan))
+
+
+@router.callback_query(PlanEditNoLimitCD.filter())
+async def cq_plan_edit_no_limit(
+    query: CallbackQuery, callback_data: PlanEditNoLimitCD, state: FSMContext
+) -> None:
+    await state.clear()
+    async with AsyncSessionLocal() as session:
+        try:
+            plan = await update_plan_field(session, callback_data.plan_id, callback_data.field, "-")
+        except LookupError:
+            await query.answer("Тариф не найден.", show_alert=True)
+            return
+    try:
+        await query.message.edit_text(_plan_text(plan), reply_markup=kb_plan_detail(plan))
+    except TelegramBadRequest:
+        pass
+    await query.answer("Лимит убран.")
 
 
 @router.callback_query(BackCD.filter(F.target == "plan_detail"))
@@ -228,8 +250,6 @@ _CREATE_STEPS: list[tuple[str, str, str]] = [
     ("currency", "currency", "Введите <b>валюту</b> (3 буквы, например RUB):"),
     ("duration_days", "duration_days", "Введите <b>длительность</b> в днях (например 30):"),
     ("openai_model", "openai_model", "Введите <b>модель OpenAI</b> (например gpt-4.1-mini)\nили нажмите кнопку чтобы использовать модель по умолчанию:"),
-    ("max_day", "max_day", "Введите <b>лимит запросов в день</b> (или <code>-</code> без лимита):"),
-    ("max_period", "max_period", "Введите <b>лимит за весь период</b> (или <code>-</code> без лимита):"),
     ("sort_order", "sort_order", "Введите <b>порядок сортировки</b> (целое число ≥ 0, например 0):"),
     ("stars_price", "stars_price", "Введите <b>Stars-цену</b> (целое число > 0) или <code>-</code> чтобы не принимать Stars:"),
 ]
@@ -240,8 +260,6 @@ _STEP_STATES = [
     PlanCreateFSM.currency,
     PlanCreateFSM.duration_days,
     PlanCreateFSM.openai_model,
-    PlanCreateFSM.max_day,
-    PlanCreateFSM.max_period,
     PlanCreateFSM.sort_order,
     PlanCreateFSM.stars_price,
 ]
@@ -266,26 +284,6 @@ async def cq_plan_create_start(query: CallbackQuery, state: FSMContext) -> None:
         await query.message.edit_text(
             _step_header(0) + prompt,
             reply_markup=kb_plan_create_cancel(),
-        )
-    except TelegramBadRequest:
-        pass
-    await query.answer()
-
-
-@router.callback_query(PlanCreateNoLimitCD.filter())
-async def cq_plan_create_no_limit(
-    query: CallbackQuery, callback_data: PlanCreateNoLimitCD, state: FSMContext
-) -> None:
-    field_key = callback_data.field
-    step_idx = next(i for i, (_, k, _) in enumerate(_CREATE_STEPS) if k == field_key)
-    await state.update_data(**{field_key: None})
-    next_idx = step_idx + 1
-    _, _, prompt = _CREATE_STEPS[next_idx]
-    await state.set_state(_STEP_STATES[next_idx])
-    try:
-        await query.message.edit_text(
-            _step_header(next_idx) + prompt,
-            reply_markup=_kb_for_step(next_idx),
         )
     except TelegramBadRequest:
         pass
@@ -317,8 +315,6 @@ def _kb_for_step(step_idx: int) -> object:
     if field_key == "openai_model":
         from app.config import get_settings  # noqa: PLC0415
         return kb_plan_create_model(get_settings().openai_model)
-    if field_key in ("max_day", "max_period"):
-        return kb_plan_create_no_limit(field_key)
     return kb_plan_create_cancel()
 
 

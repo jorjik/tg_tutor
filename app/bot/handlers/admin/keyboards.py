@@ -10,10 +10,10 @@ from app.bot.handlers.admin.callbacks import (
     BackCD,
     PlanCreateCD,
     PlanCreateDefaultModelCD,
-    PlanCreateNoLimitCD,
     PlanDeleteCD,
     PlanDetailCD,
     PlanEditFieldCD,
+    PlanEditNoLimitCD,
     PlanListCD,
     PlanToggleActiveCD,
     UserDetailCD,
@@ -98,10 +98,10 @@ def kb_plan_create_cancel() -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
-def kb_plan_create_no_limit(field: str) -> InlineKeyboardMarkup:
+def kb_plan_edit_no_limit(plan_id: int, field: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text="♾ Без лимита", callback_data=PlanCreateNoLimitCD(field=field))
-    b.button(text="❌ Отменить создание", callback_data=PlanListCD())
+    b.button(text="♾ Без лимита", callback_data=PlanEditNoLimitCD(plan_id=plan_id, field=field))
+    b.button(text="❌ Отмена", callback_data=BackCD(target="plan_detail", ref_id=plan_id))
     b.adjust(1)
     return b.as_markup()
 

@@ -18,7 +18,5 @@ class PlanCreateFSM(StatesGroup):
     currency = State()
     duration_days = State()
     openai_model = State()
-    max_day = State()     # max_requests_per_day  — "-" or int
-    max_period = State()  # max_requests_per_period — "-" or int
     sort_order = State()
     stars_price = State()  # Stars-цена — целое число > 0 или "-"
