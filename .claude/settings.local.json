@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python -c \"from app.bot.handlers import root_router; print\\('Import OK'\\)\")",
       "Bash(python -c ':*)",
-      "Bash(find /c/dev/tg_tutor -name \"*.py\" -type f -exec wc -l {} +)"
+      "Bash(find /c/dev/tg_tutor -name \"*.py\" -type f -exec wc -l {} +)",
+      "Bash(xargs grep:*)"
     ]
   }
 }
