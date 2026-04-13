@@ -39,11 +39,9 @@ class Settings(BaseSettings):
     yookassa_shop_id: str = Field(default="")
     yookassa_secret_key: str = Field(default="")
 
-    # Веб-сервис (FastAPI)
+    # Веб-сервис (FastAPI) — только вебхуки платёжных провайдеров
     web_host: str = Field(default="0.0.0.0")
     web_port: int = Field(default=8000)
-    admin_web_username: str = Field(default="admin")
-    admin_web_password: str = Field(default="changeme")
 
     def get_admin_ids(self) -> frozenset[int]:
         if not self.admin_telegram_ids.strip():

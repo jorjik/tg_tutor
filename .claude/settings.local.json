@@ -4,7 +4,8 @@
       "Bash(python -c \"from app.bot.handlers import root_router; print\\('Import OK'\\)\")",
       "Bash(python -c ':*)",
       "Bash(find /c/dev/tg_tutor -name \"*.py\" -type f -exec wc -l {} +)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(python -c \"from app.web.app import app; print\\('web ok:', [r.path for r in app.routes]\\)\")"
     ]
   }
 }

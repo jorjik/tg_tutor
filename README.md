@@ -69,10 +69,10 @@ python -m app.bot.main
 uvicorn app.web.app:app --reload
 ```
 
-Веб-сервис доступен на `http://localhost:8000`:
-- `GET /admin/` — веб-админка тарифов (Basic Auth: `admin` / `changeme`)
+Веб-сервис доступен на `http://localhost:8000` и принимает **только вебхуки платёжных провайдеров** (админка живёт в боте через `/admin`):
 - `POST /webhooks/stripe` — вебхук Stripe
 - `POST /webhooks/yookassa` — вебхук ЮKassa
+- `GET /healthz` — health-check
 - `GET /docs` — Swagger UI
 
 ### 6. Подключить Stripe (для тестирования оплаты)
@@ -100,7 +100,7 @@ stripe listen --forward-to localhost:8000/webhooks/stripe
 # Stripe CLI выдаст STRIPE_WEBHOOK_SECRET — скопируйте в .env
 ```
 
-4. Создайте тариф через `/admin` в боте или через веб-админку
+4. Создайте тариф через `/admin` в боте
 5. В боте: `/subscribe` → выберите тариф → оплатите тестовой картой `4242 4242 4242 4242`
 6. После оплаты Stripe CLI проксирует вебхук → подписка активируется
 
@@ -204,10 +204,8 @@ tg_tutor/
 │   │       ├── stripe_provider.py
 │   │       └── yookassa_provider.py
 │   ├── web/
-│   │   ├── app.py              # FastAPI app
-│   │   ├── auth.py             # HTTP Basic Auth
+│   │   ├── app.py              # FastAPI app (только вебхуки)
 │   │   └── routes/
-│   │       ├── admin.py        # веб-админка тарифов
 │   │       └── webhooks.py     # POST /webhooks/stripe, /webhooks/yookassa
 │   └── config.py               # pydantic-settings
 ├── alembic/                    # миграции БД
@@ -232,8 +230,6 @@ tg_tutor/
 | `STRIPE_WEBHOOK_SECRET` | при Stripe | `whsec_...` из Stripe CLI / Dashboard |
 | `YOOKASSA_SHOP_ID` | при ЮKassa | ID магазина |
 | `YOOKASSA_SECRET_KEY` | при ЮKassa | Секретный ключ |
-| `ADMIN_WEB_USERNAME` | — | Логин веб-админки (дефолт: `admin`) |
-| `ADMIN_WEB_PASSWORD` | — | Пароль веб-админки (дефолт: `changeme`) |
 | `OPENAI_MODEL` | — | Дефолтная модель (дефолт: `gpt-4.1-mini`) |
 | `RECENT_USER_MESSAGES` | — | Размер окна памяти в парах (дефолт: 10) |
 
