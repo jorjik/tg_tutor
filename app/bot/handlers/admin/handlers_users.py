@@ -5,12 +5,32 @@ from math import ceil
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 
-from app.bot.handlers.admin.callbacks import AdminMenuCD, BackCD, UserDetailCD, UserListCD
-from app.bot.handlers.admin.keyboards import kb_user_detail, kb_user_list
+from app.bot.handlers.admin.callbacks import (
+    AdminMenuCD,
+    BackCD,
+    UserAddFreeCancelCD,
+    UserAddFreePickPlanCD,
+    UserAddFreeStartCD,
+    UserDetailCD,
+    UserListCD,
+)
+from app.bot.handlers.admin.keyboards import (
+    kb_user_add_free_cancel,
+    kb_user_add_free_plans,
+    kb_user_detail,
+    kb_user_list,
+)
+from app.bot.handlers.admin.states import UserAddFreeFSM
 from app.db.session import AsyncSessionLocal
-from app.services.admin_service import UserDetail, get_user_detail, get_users_page
+from app.services.admin_service import (
+    UserDetail,
+    get_all_plans,
+    get_user_detail,
+    get_users_page,
+    grant_free_subscription,
+)
 
 router = Router(name="admin_users")
 
@@ -109,3 +129,89 @@ async def cq_back_to_user_list(
     query: CallbackQuery, callback_data: BackCD, state: FSMContext
 ) -> None:
     await show_user_page(query, page=callback_data.ref_id)
+
+
+# ── Add free subscription wizard ─────────────────────────────────────────────
+
+@router.callback_query(UserAddFreeStartCD.filter())
+async def cq_user_add_free_start(query: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
+    await state.set_state(UserAddFreeFSM.waiting_for_telegram_id)
+    try:
+        await query.message.edit_text(
+            "<b>➕ Бесплатный доступ</b>\n\n"
+            "Введите <b>Telegram ID</b> пользователя (число).\n"
+            "Если пользователь ещё не запускал бота — запись будет создана автоматически.",
+            reply_markup=kb_user_add_free_cancel(),
+        )
+    except TelegramBadRequest:
+        pass
+    await query.answer()
+
+
+@router.message(UserAddFreeFSM.waiting_for_telegram_id, F.text)
+async def fsm_user_add_free_telegram_id(message: Message, state: FSMContext) -> None:
+    raw = (message.text or "").strip().lstrip("@")
+    if not raw.isdigit():
+        await message.answer(
+            "⚠️ Введите числовой Telegram ID (например, <code>123456789</code>).",
+            reply_markup=kb_user_add_free_cancel(),
+        )
+        return
+
+    telegram_id = int(raw)
+    async with AsyncSessionLocal() as session:
+        plans = await get_all_plans(session)
+    active_plans = [p for p in plans if p.is_active]
+    if not active_plans:
+        await state.clear()
+        await message.answer("⚠️ Нет активных тарифов. Сначала создайте тариф.")
+        return
+
+    await state.set_state(UserAddFreeFSM.waiting_for_plan)
+    await state.update_data(telegram_id=telegram_id)
+    await message.answer(
+        f"Выберите тариф для пользователя <code>{telegram_id}</code>:",
+        reply_markup=kb_user_add_free_plans(active_plans),
+    )
+
+
+@router.callback_query(UserAddFreePickPlanCD.filter())
+async def cq_user_add_free_pick_plan(
+    query: CallbackQuery, callback_data: UserAddFreePickPlanCD, state: FSMContext
+) -> None:
+    data = await state.get_data()
+    telegram_id = data.get("telegram_id")
+    if telegram_id is None:
+        await state.clear()
+        await query.answer("Сессия устарела, попробуйте снова.", show_alert=True)
+        return
+
+    async with AsyncSessionLocal() as session:
+        try:
+            user, sub, plan = await grant_free_subscription(
+                session, telegram_id=telegram_id, plan_id=callback_data.plan_id
+            )
+        except LookupError as exc:
+            await query.answer(str(exc), show_alert=True)
+            return
+
+    await state.clear()
+    ends = sub.ends_at.strftime("%d.%m.%Y")
+    try:
+        await query.message.edit_text(
+            f"✅ Бесплатный доступ выдан.\n\n"
+            f"Telegram ID: <code>{user.telegram_id}</code>\n"
+            f"Тариф: <b>{plan.name}</b>\n"
+            f"Действует до: <b>{ends}</b>",
+            reply_markup=kb_user_detail(page=0),
+        )
+    except TelegramBadRequest:
+        pass
+    await query.answer("Подписка активирована.")
+
+
+@router.callback_query(UserAddFreeCancelCD.filter())
+async def cq_user_add_free_cancel(query: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
+    await show_user_page(query, page=0)

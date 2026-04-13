@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ChatMessage, Payment, Plan, Subscription, UsageCounter, User
+from app.db.models import (
+    ChatMessage,
+    Payment,
+    Plan,
+    Subscription,
+    SubscriptionStatus,
+    UsageCounter,
+    User,
+)
 
 
 # ── Result dataclasses ───────────────────────────────────────────────────────
@@ -293,3 +301,55 @@ async def get_user_detail(session: AsyncSession, user_id: int) -> UserDetail | N
         sub_ends_at=sub_ends_at,
         total_requests=int(total_requests),
     )
+
+
+async def grant_free_subscription(
+    session: AsyncSession,
+    telegram_id: int,
+    plan_id: int,
+) -> tuple[User, Subscription, Plan]:
+    """Создаёт или продлевает активную подписку для пользователя без платежа.
+
+    Если пользователь ещё не зарегистрирован в боте — создаёт запись по telegram_id.
+    Возвращает (user, subscription, plan).
+    """
+    plan = await session.get(Plan, plan_id)
+    if plan is None:
+        raise LookupError("Тариф не найден.")
+
+    user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
+    if user is None:
+        user = User(telegram_id=telegram_id, username=None, locale=None)
+        session.add(user)
+        await session.flush()
+
+    now = datetime.now(UTC)
+    active = await session.scalar(
+        select(Subscription).where(
+            Subscription.user_id == user.id,
+            Subscription.status == SubscriptionStatus.ACTIVE,
+            Subscription.ends_at > now,
+        )
+    )
+    if active and active.plan_id == plan.id:
+        active.ends_at += timedelta(days=plan.duration_days)
+        sub = active
+    else:
+        if active:
+            active.status = SubscriptionStatus.EXPIRED
+        sub = Subscription(
+            user_id=user.id,
+            plan_id=plan.id,
+            starts_at=now,
+            ends_at=now + timedelta(days=plan.duration_days),
+            status=SubscriptionStatus.ACTIVE,
+        )
+        session.add(sub)
+
+    await session.commit()
+    await session.refresh(user)
+    await session.refresh(sub)
+
+    from app.services.subscription_service import invalidate_subscription_cache  # noqa: PLC0415
+    invalidate_subscription_cache(user.id)
+    return user, sub, plan

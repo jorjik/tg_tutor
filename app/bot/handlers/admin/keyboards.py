@@ -16,6 +16,9 @@ from app.bot.handlers.admin.callbacks import (
     PlanEditNoLimitCD,
     PlanListCD,
     PlanToggleActiveCD,
+    UserAddFreeCancelCD,
+    UserAddFreePickPlanCD,
+    UserAddFreeStartCD,
     UserDetailCD,
     UserListCD,
 )
@@ -148,7 +151,27 @@ def kb_user_list(
         b.button(text=label, callback_data=cb)
     b.adjust(len(nav_row))
 
+    b.button(text="➕ Бесплатный доступ", callback_data=UserAddFreeStartCD())
     b.button(text="🔙 Меню", callback_data=BackCD(target="menu"))
+    b.adjust(1)
+    return b.as_markup()
+
+
+def kb_user_add_free_cancel() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="❌ Отмена", callback_data=UserAddFreeCancelCD())
+    return b.as_markup()
+
+
+def kb_user_add_free_plans(plans: list[Plan]) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    for plan in plans:
+        b.button(
+            text=f"💼 {plan.name} ({plan.duration_days} дн.)",
+            callback_data=UserAddFreePickPlanCD(plan_id=plan.id),
+        )
+    b.adjust(1)
+    b.button(text="❌ Отмена", callback_data=UserAddFreeCancelCD())
     b.adjust(1)
     return b.as_markup()
 

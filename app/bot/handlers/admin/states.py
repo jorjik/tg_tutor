@@ -20,3 +20,10 @@ class PlanCreateFSM(StatesGroup):
     openai_model = State()
     sort_order = State()
     stars_price = State()  # Stars-цена — целое число > 0 или "-"
+
+
+class UserAddFreeFSM(StatesGroup):
+    """Wizard for granting a free subscription to a user."""
+
+    waiting_for_telegram_id = State()
+    waiting_for_plan = State()

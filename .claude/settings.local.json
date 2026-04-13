@@ -5,7 +5,8 @@
       "Bash(python -c ':*)",
       "Bash(find /c/dev/tg_tutor -name \"*.py\" -type f -exec wc -l {} +)",
       "Bash(xargs grep:*)",
-      "Bash(python -c \"from app.web.app import app; print\\('web ok:', [r.path for r in app.routes]\\)\")"
+      "Bash(python -c \"from app.web.app import app; print\\('web ok:', [r.path for r in app.routes]\\)\")",
+      "Bash(python -m py_compile app/bot/handlers/admin/callbacks.py app/bot/handlers/admin/states.py app/bot/handlers/admin/keyboards.py app/bot/handlers/admin/handlers_users.py app/services/admin_service.py)"
     ]
   }
 }
